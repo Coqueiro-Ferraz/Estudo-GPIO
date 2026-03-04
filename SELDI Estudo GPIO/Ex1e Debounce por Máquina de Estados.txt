@@ -1,0 +1,77 @@
+#include "driver/gpio.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+
+#define BUTTON_GPIO 4
+#define DEBOUNCE_TIME 50
+
+typedef enum {
+    RELEASED,
+    DEBOUNCE_PRESS,
+    PRESSED,
+    DEBOUNCE_RELEASE
+} button_state_t;
+
+void app_main(void)
+{
+    button_state_t state = RELEASED;
+    TickType_t last_change = 0;
+
+    gpio_config_t io_conf = {
+        .pin_bit_mask = (1ULL << BUTTON_GPIO),
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+    };
+    gpio_config(&io_conf);
+
+    while (1)
+    {
+        int level = gpio_get_level(BUTTON_GPIO);
+        TickType_t now = xTaskGetTickCount();
+
+
+        switch (state)
+        {
+            case RELEASED:
+                if (level == 0)
+                {
+                    state = DEBOUNCE_PRESS;
+                    last_change = now;
+                }
+                break;
+
+            case DEBOUNCE_PRESS:
+                if ((now - last_change) > pdMS_TO_TICKS(DEBOUNCE_TIME))
+                {
+                    if (level == 0)
+                    {
+                        printf("Botão pressionado\n");
+                        state = PRESSED;
+                    }
+                    else
+                        state = RELEASED;
+                }
+                break;
+
+            case PRESSED:
+                if (level == 1)
+                {
+                    state = DEBOUNCE_RELEASE;
+                    last_change = now;
+                }
+                break;
+
+            case DEBOUNCE_RELEASE:
+                if ((now - last_change) > pdMS_TO_TICKS(DEBOUNCE_TIME))
+                {
+                    if (level == 1)
+                        state = RELEASED;
+                    else
+                        state = PRESSED;
+                }
+                break;
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}

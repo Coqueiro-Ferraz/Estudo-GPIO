@@ -1,0 +1,25 @@
+#include "driver/touch_pad.h"
+#include "esp_log.h"
+
+#define TOUCH_PAD_NUM TOUCH_PAD_NUM0
+
+void app_main(void)
+{
+    touch_pad_init();
+    touch_pad_config(TOUCH_PAD_NUM, 0);
+
+    uint16_t touch_value;
+
+    while (1)
+    {
+        touch_pad_read_raw_data(TOUCH_PAD_NUM, &touch_value);
+        printf("Valor touch: %d\n", touch_value);
+
+        if (touch_value < 300) // valor depende de calibração
+        {
+            printf("Toque detectado!\n");
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(200));
+    }
+}

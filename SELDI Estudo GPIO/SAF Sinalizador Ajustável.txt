@@ -1,0 +1,207 @@
+/****************************************************************************** 
+
+Elaborado por HAGACEEF
+
+🏭 Sinalizador Ajustável de Status Operacional
+
+Uma bancada de testes industriais precisa de um sinalizador visual intermitente para indicar que um sistema está em modo de calibração.
+
+Esse pequeno projeto simula uma situação real:
+
+Interface simples
+Ajuste paramétrico
+Limites de segurança
+Controle determinístico
+
+É a base conceitual de:
+
+- Controladores industriais
+- Ajuste de setpoint
+- Interfaces homem-máquina básicas
+- Sinalizadores programáveis
+
+------------------------------------------------------------------------------
+
+O operador deve poder:
+
+🔼 Aumentar a velocidade de piscagem
+
+🔽 Diminuir a velocidade de piscagem
+
+Sem reprogramar o equipamento.
+
+------------------------------------------------------------------------------
+
+🔷 🔧 Especificação Técnica
+
+- Microcontrolador: ESP32
+- LED vermelho 3mm
+- 2 botões:
+	- BTN_UP → aumenta frequência
+	- BTN_DOWN → diminui frequência
+- Faixa de frequência:
+	- Mínima: 0,5 Hz
+	- Máxima: 5 Hz
+- Incremento: 0,5 Hz por pressionamento
+
+------------------------------------------------------------------------------
+
+🔷 ⚡ Dimensionamento do Hardware
+
+
+
+1️⃣ LED
+
+Dados típicos:
+
+- Tensão direta (Vf) ≈ 2V
+- Corrente desejada ≈ 10 mA
+- Alimentação: 3,3V
+
+Cálculo do resistor:
+
+R = ( VCC - VF ) / I
+R = ( 3,3 - 2 ) / 0,01
+R = 130 Ω
+
+Vamos usar 150 Ω por ser um valor comercial próximo
+
+-----------
+
+2️⃣ Botões
+
+Vamos usar:
+
+- Botões ativos em LOW
+- Pull-up interno do ESP32
+
+Estado:
+
+- Solto → 1
+- Pressionado → 0
+
+Isso reduz componentes externos.
+
+-----------
+
+🔷 🔌 Ligações
+
+Elemento	GPIO
+LED		2
+BTN_UP		4
+BTN_DOWN		5
+
+Botões conectados entre GPIO e GND, LED 2 via ânodo.
+
+------------------------------------------------------------------------------
+
+🔷 🧠 Estratégia de Software
+
+Vamos usar:
+
+- Polling simples
+- Debounce por confirmação dupla
+- Variável frequency
+- Cálculo dinâmico do tempo de delay
+
+Relação frequência e período:
+
+T = 1 / f
+	​
+Como queremos piscar (liga + desliga):
+
+Delay = T / 2
+
+------------------------------------------------------------------------------
+
+🔷 🔬 Melhorias Possíveis
+
+1️⃣ Substituir float por cálculo inteiro
+2️⃣ Implementar máquina de estados
+3️⃣ Usar interrupção nos botões
+4️⃣ Implementar aceleração ao segurar botão
+5️⃣ Salvar frequência na NVS
+
+******************************************************************************/
+
+#include "driver/gpio.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include <stdio.h>
+
+#define LED_GPIO     2
+#define BTN_UP       4
+#define BTN_DOWN     5
+
+#define FREQ_MIN     0.5
+#define FREQ_MAX     5.0
+#define FREQ_STEP    0.5
+
+float frequency = 1.0;  // frequência inicial
+
+void app_main(void)
+{
+    gpio_config_t io_conf = {0};
+
+    // LED como saída
+    io_conf.mode = GPIO_MODE_OUTPUT;
+    io_conf.pin_bit_mask = (1ULL << LED_GPIO);
+    gpio_config(&io_conf);
+
+    // Botões como entrada com pull-up
+    io_conf.mode = GPIO_MODE_INPUT;
+    io_conf.pin_bit_mask = (1ULL << BTN_UP) | (1ULL << BTN_DOWN);
+    io_conf.pull_up_en = GPIO_PULLUP_ENABLE;
+    io_conf.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    gpio_config(&io_conf);
+
+    while (1)
+    {
+        // Verifica botão UP (ativo em LOW)
+        if (gpio_get_level(BTN_UP) == 0)
+        {
+            vTaskDelay(pdMS_TO_TICKS(50)); // debounce
+
+            if (gpio_get_level(BTN_UP) == 0)
+            {
+                if (frequency < FREQ_MAX)
+                {
+                    frequency += FREQ_STEP;
+                    printf("Frequência: %.1f Hz\n", frequency);
+                }
+
+                while (gpio_get_level(BTN_UP) == 0);
+            }
+        }
+
+        // Verifica botão DOWN
+        if (gpio_get_level(BTN_DOWN) == 0)
+        {
+            vTaskDelay(pdMS_TO_TICKS(50));
+
+            if (gpio_get_level(BTN_DOWN) == 0)
+            {
+                if (frequency > FREQ_MIN)
+                {
+                    frequency -= FREQ_STEP;
+                    printf("Frequência: %.1f Hz\n", frequency);
+                }
+
+                while (gpio_get_level(BTN_DOWN) == 0);
+            }
+        }
+
+        // Calcula período
+        float period = 1.0 / frequency;
+        int delay_ms = (int)((period / 2.0) * 1000);
+
+        // Pisca LED
+        gpio_set_level(LED_GPIO, 1);
+        vTaskDelay(pdMS_TO_TICKS(delay_ms));
+
+        gpio_set_level(LED_GPIO, 0);
+        vTaskDelay(pdMS_TO_TICKS(delay_ms));
+    }
+}
+
+
