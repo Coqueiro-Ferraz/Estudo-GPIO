@@ -3,6 +3,7 @@
 #include "freertos/task.h"
 
 #define BUTTON_GPIO 4
+#define DEBOUNCE_LIMIT 20
 
 void app_main(void)
 {
@@ -36,4 +37,5 @@ void app_main(void)
 
         vTaskDelay(pdMS_TO_TICKS(10));
     }
+
 }
