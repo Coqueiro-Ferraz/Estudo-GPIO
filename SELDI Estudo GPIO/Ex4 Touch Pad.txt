@@ -1,12 +1,23 @@
 #include "driver/touch_pad.h"
 #include "esp_log.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #define TOUCH_PAD_NUM TOUCH_PAD_NUM0
 
 void app_main(void)
 {
     touch_pad_init();
-    touch_pad_config(TOUCH_PAD_NUM, 0);
+
+    touch_pad_set_voltage(
+        TOUCH_HVOLT_2V7,
+        TOUCH_LVOLT_0V5,
+        TOUCH_HVOLT_ATTEN_1V);
+
+    touch_pad_config(TOUCH_PAD_NUM,0);
+    touch_pad_filter_start(10);
+
+    vTaskDelay(pdMS_TO_TICKS(200));
 
     uint16_t touch_value;
 
@@ -15,7 +26,7 @@ void app_main(void)
         touch_pad_read_raw_data(TOUCH_PAD_NUM, &touch_value);
         printf("Valor touch: %d\n", touch_value);
 
-        if (touch_value < 300) // valor depende de calibração
+        if (touch_value < 800) // valor depende de calibração
         {
             printf("Toque detectado!\n");
         }
