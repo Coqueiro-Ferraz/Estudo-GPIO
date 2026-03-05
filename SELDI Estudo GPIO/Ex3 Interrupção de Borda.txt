@@ -1,11 +1,23 @@
+#include <stdio.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "driver/gpio.h"
-#include "esp_log.h"
 
 #define BUTTON_GPIO 4
 
+volatile bool status = false;
+volatile uint32_t counter = 0;
+
+// ⚠ ISR deve ser a mais curta possível
 static void IRAM_ATTR gpio_isr_handler(void* arg)
 {
-    printf("Interrupção detectada!\n");
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+    // Evite printf dentro de ISR (não é seguro)
+    status = true;
+    counter++;
+
+    portYIELD_FROM_ISR(xHigherPriorityTaskWoken);
 }
 
 void app_main(void)
@@ -14,10 +26,26 @@ void app_main(void)
         .pin_bit_mask = (1ULL << BUTTON_GPIO),
         .mode = GPIO_MODE_INPUT,
         .pull_up_en = GPIO_PULLUP_ENABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type = GPIO_INTR_NEGEDGE,
     };
+
     gpio_config(&io_conf);
 
+    // Instala serviço global de ISR
     gpio_install_isr_service(0);
+
+    // Associa ISR ao pino
     gpio_isr_handler_add(BUTTON_GPIO, gpio_isr_handler, NULL);
+
+    while (1)
+    {
+        if(status)
+        {
+            printf("Botão pressionado: %ld\n",counter);
+            status = false;
+            counter = 0;
+        }
+        vTaskDelay(pdMS_TO_TICKS(1000));
+    }
 }
